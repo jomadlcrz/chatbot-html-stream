@@ -15,8 +15,8 @@ This is a simple ChatBot web application with a user-friendly interface, built u
 1. Clone the repository:
 
    ```sh
-   git clone https://github.com/jomadlcrz/chatbot-html.git
-   cd chatbot-html
+   git clone https://github.com/jomadlcrz/chatbot-html.git](https://github.com/jomadlcrz/chatbot-html-stream.git
+   cd chatbot-html-stream
    ```
 
 2. Open `index.html` in a web browser.
@@ -32,13 +32,11 @@ This project uses the following external libraries:
 ## Usage
 
 1. Open `index.html` in your preferred browser.
-2. Type a message in the input box and send it.
-3. Click "New chat" to reset the conversation.
 
 ## File Structure
 
 ```
-/chatbot-html
+/chatbot-html-stream
 │── index.html        # Main HTML file
 │── style.css         # Stylesheet
 │── script.js         # JavaScript logic
