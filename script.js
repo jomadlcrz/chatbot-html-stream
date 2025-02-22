@@ -128,62 +128,66 @@ const saveChatHistory = () => {
 
 // Function to stream bot response word by word with live Markdown rendering
 const streamBotResponse = (response, messageElement) => {
-  const words = response.split(' ');
-  let wordIndex = 0;
-  const typingSpeed = 30; // Faster typing effect
-  let streamedText = ""; // Accumulate streamed text
-  
-  const typeNextWord = () => {
-    if (wordIndex < words.length) {
-      streamedText += (wordIndex === 0 ? "" : " ") + words[wordIndex]; // Maintain spaces
-      wordIndex++;
-      
-      // Normalize line breaks before rendering
-      const normalizedText = streamedText.replace(/\n{2,}/g, '\n');
-      
-      // Render Markdown on the fly
-      messageElement.innerHTML = md.render(normalizedText);
-      
-      // Enhance code blocks dynamically
-      messageElement.querySelectorAll('pre code').forEach((block) => {
-        hljs.highlightBlock(block);
-        
-        // Ensure we only add buttons once
-        if (!block.parentElement.classList.contains('code-wrapper')) {
-          enhanceCodeBlock(block);
+    const words = response.split(' ');
+    let wordIndex = 0;
+    const typingSpeed = 30; // Faster typing effect
+    let streamedText = ""; // Accumulate streamed text
+
+    const typeNextWord = () => {
+        if (wordIndex < words.length) {
+            streamedText += (wordIndex === 0 ? "" : " ") + words[wordIndex]; // Maintain spaces
+            wordIndex++;
+
+            // Normalize line breaks before rendering
+            const normalizedText = streamedText.replace(/\n{2,}/g, '\n');
+
+            // Render Markdown on the fly
+            messageElement.innerHTML = md.render(normalizedText);
+
+            // Enhance code blocks dynamically
+            messageElement.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightBlock(block);
+
+                // Ensure we only add buttons once
+                if (!block.parentElement.classList.contains('code-wrapper')) {
+                    enhanceCodeBlock(block);
+                }
+            });
+
+            // Auto-scroll if enabled
+            if (isAutoScrolling) {
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+
+            setTimeout(typeNextWord, typingSpeed);
+        } else {
+            // Store raw content in the dataset for copy functionality
+            messageElement.dataset.markdownContent = response;
+
+            // Add the copy button
+            let copyTextButton = document.createElement('button');
+            copyTextButton.classList.add('copy-text-btn');
+            copyTextButton.innerHTML = `<i class="fa-regular fa-clone"></i>`;
+
+            copyTextButton.onclick = () => {
+                navigator.clipboard.writeText(response).then(() => {
+                    copyTextButton.innerHTML = `<i class="fa-solid fa-check"></i>`;
+                    setTimeout(() => copyTextButton.innerHTML = `<i class="fa-regular fa-clone"></i>`, 1500);
+                }).catch((error) => {
+                    console.error('Failed to copy:', error);
+                });
+            };
+
+            messageElement.appendChild(copyTextButton);
+
+            // **NEW: Ensure the scrollbar scrolls to the bottom after streaming completes**
+            chatBox.scrollTop = chatBox.scrollHeight;
         }
-      });
-      
-      // Auto-scroll if enabled
-      if (isAutoScrolling) {
-        chatBox.scrollTop = chatBox.scrollHeight;
-      }
-      
-      setTimeout(typeNextWord, typingSpeed);
-    } else {
-      // Store raw content in the dataset for copy functionality
-      messageElement.dataset.markdownContent = response;
-      
-      // Add the copy button
-      let copyTextButton = document.createElement('button');
-      copyTextButton.classList.add('copy-text-btn');
-      copyTextButton.innerHTML = `<i class="fa-regular fa-clone"></i>`;
-      
-      copyTextButton.onclick = () => {
-        navigator.clipboard.writeText(response).then(() => {
-          copyTextButton.innerHTML = `<i class="fa-solid fa-check"></i>`;
-          setTimeout(() => copyTextButton.innerHTML = `<i class="fa-regular fa-clone"></i>`, 1500);
-        }).catch((error) => {
-          console.error('Failed to copy:', error);
-        });
-      };
-      
-      messageElement.appendChild(copyTextButton);
-    }
-  };
-  
-  typeNextWord();
+    };
+
+    typeNextWord();
 };
+
 
 // Function to enhance code blocks (highlighting, label, and copy button)
 const enhanceCodeBlock = (codeBlock) => {
