@@ -251,108 +251,113 @@ const addMessageWithMarkdown = (content, sender) => {
 
 // Function to handle sending a message
 const sendMessage = () => {
-  let message = userInput.value.trim();
-  if (!message) return;
-  addMessageWithMarkdown(message, 'user');
-  userInput.value = '';
-  userInput.style.height = "auto"; // Reset input height
-  sendButton.disabled = true;
+    let message = userInput.value.trim();
+    if (!message) return;
+    addMessageWithMarkdown(message, 'user');
+    userInput.value = '';
+    userInput.style.height = "auto";
+    sendButton.disabled = true;
 
-  conversationHistory.push({ role: "user", content: message });
-  saveChatHistory();
+    conversationHistory.push({ role: "user", content: message });
+    saveChatHistory();
 
-  abortController = new AbortController();
-  const { signal } = abortController;
+    abortController = new AbortController();
+    const { signal } = abortController;
 
-  // Create a bot message container
-  const botMessage = document.createElement('div');
-  botMessage.classList.add('message', 'bot-message');
-  chatBox.appendChild(botMessage);
+    // Create a bot message container
+    const botMessage = document.createElement('div');
+    botMessage.classList.add('message', 'bot-message');
+    chatBox.appendChild(botMessage);
 
-  // Auto-scroll to bottom
-  if (isAutoScrolling) {
-    chatBox.scrollTop = chatBox.scrollHeight;
-  }
+    // **Add Streaming Indicator**
+    const loadingMessage = document.createElement('div');
+    loadingMessage.classList.add('loading-message');
+    loadingMessage.innerHTML = `<i class="fa-solid fa-circle fa-spin"></i>`;
+    chatBox.appendChild(loadingMessage);
 
-  fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: conversationHistory }),
-      signal: signal,
-  })
-  .then(response => {
-      if (!response.body) throw new Error("No response body");
+    if (isAutoScrolling) {
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
 
-      const reader = response.body.getReader();
-      let streamedText = "";
-      
-      const processStream = async () => {
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-    
-            const chunk = new TextDecoder().decode(value);
-            streamedText += chunk;
-    
-            // Normalize line breaks before rendering
-            const normalizedText = streamedText.replace(/\n{2,}/g, '\n');
-    
-            // Render Markdown dynamically
-            botMessage.innerHTML = md.render(normalizedText);
-    
-            // Enhance code blocks dynamically
-            botMessage.querySelectorAll('pre code').forEach((block) => {
-                hljs.highlightBlock(block);
-                if (!block.parentElement.classList.contains('code-wrapper')) {
-                    enhanceCodeBlock(block);
+    fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: conversationHistory }),
+        signal: signal,
+    })
+    .then(response => {
+        if (!response.body) throw new Error("No response body");
+
+        const reader = response.body.getReader();
+        let streamedText = "";
+        let isFirstChunk = true;  // Track first chunk to remove the indicator
+
+        const processStream = async () => {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                // **Remove streaming indicator once the first chunk is received**
+                if (isFirstChunk) {
+                    loadingMessage.remove();
+                    isFirstChunk = false;
                 }
-            });
-    
-            // Always scroll to bottom while streaming if auto-scroll is enabled
-            if (isAutoScrolling) {
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }
-        }
-    
-        // Save final response to conversation history
-        conversationHistory.push({ role: "assistant", content: streamedText });
-        saveChatHistory();
-    
-        // Add copy text button after streaming completes
-        botMessage.dataset.markdownContent = streamedText;
-        let copyTextButton = document.createElement('button');
-        copyTextButton.classList.add('copy-text-btn');
-        copyTextButton.innerHTML = `<i class="fa-regular fa-clone"></i>`;
-    
-        copyTextButton.onclick = () => {
-            navigator.clipboard.writeText(streamedText).then(() => {
-                copyTextButton.innerHTML = `<i class="fa-solid fa-check"></i>`;
-                setTimeout(() => copyTextButton.innerHTML = `<i class="fa-regular fa-clone"></i>`, 1500);
-            }).catch((error) => {
-                console.error('Failed to copy:', error);
-            });
-        };
-    
-        botMessage.appendChild(copyTextButton);
-    
-        // **Ensure final scroll to bottom after streaming completes if auto-scroll is enabled**
-        if (isAutoScrolling) {
-            setTimeout(() => {
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }, 100);
-        }
-    };
-    
 
-      processStream();
-  })
-  .catch(error => {
-      if (error.name !== 'AbortError') {
-          console.error("Error streaming response:", error);
-          botMessage.textContent = "Error: Could not reach AI service.";
-      }
-  });
+                const chunk = new TextDecoder().decode(value);
+                streamedText += chunk;
+
+                const normalizedText = streamedText.replace(/\n{2,}/g, '\n');
+                botMessage.innerHTML = md.render(normalizedText);
+
+                botMessage.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightBlock(block);
+                    if (!block.parentElement.classList.contains('code-wrapper')) {
+                        enhanceCodeBlock(block);
+                    }
+                });
+
+                if (isAutoScrolling) {
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                }
+            }
+
+            conversationHistory.push({ role: "assistant", content: streamedText });
+            saveChatHistory();
+
+            botMessage.dataset.markdownContent = streamedText;
+            let copyTextButton = document.createElement('button');
+            copyTextButton.classList.add('copy-text-btn');
+            copyTextButton.innerHTML = `<i class="fa-regular fa-clone"></i>`;
+
+            copyTextButton.onclick = () => {
+                navigator.clipboard.writeText(streamedText).then(() => {
+                    copyTextButton.innerHTML = `<i class="fa-solid fa-check"></i>`;
+                    setTimeout(() => copyTextButton.innerHTML = `<i class="fa-regular fa-clone"></i>`, 1500);
+                }).catch((error) => {
+                    console.error('Failed to copy:', error);
+                });
+            };
+
+            botMessage.appendChild(copyTextButton);
+
+            if (isAutoScrolling) {
+                setTimeout(() => {
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                }, 100);
+            }
+        };
+
+        processStream();
+    })
+    .catch(error => {
+        if (error.name !== 'AbortError') {
+            console.error("Error streaming response:", error);
+            botMessage.textContent = "Error: Could not reach AI service.";
+            loadingMessage.remove(); // **Remove indicator on error**
+        }
+    });
 };
+
 
 // Function to remove the welcome message once the user sends a message
 const removeWelcomeMessage = () => {
