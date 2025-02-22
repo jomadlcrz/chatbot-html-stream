@@ -16,7 +16,7 @@ resetButton.addEventListener('click', () => {
 const chatBox = document.getElementById('chatBox'),
   userInput = document.getElementById('userInput'),
   sendButton = document.getElementById('sendButton');
-const apiUrl = "https://server-gemini-stream.vercel.app/chat"; // Updated API URL
+const apiUrl = "https://openai-seven-sandy.vercel.app/chat"; // Updated API URL // Default http://localhost:3000/chat
 
 // Initialize markdown-it
 const md = new markdownit({ breaks: true, html: false });
@@ -181,13 +181,14 @@ const streamBotResponse = (response, messageElement) => {
             messageElement.appendChild(copyTextButton);
 
             // **NEW: Ensure the scrollbar scrolls to the bottom after streaming completes**
-            chatBox.scrollTop = chatBox.scrollHeight;
+            if (isAutoScrolling) {
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
         }
     };
 
     typeNextWord();
 };
-
 
 // Function to enhance code blocks (highlighting, label, and copy button)
 const enhanceCodeBlock = (codeBlock) => {
@@ -254,76 +255,103 @@ const sendMessage = () => {
   if (!message) return;
   addMessageWithMarkdown(message, 'user');
   userInput.value = '';
-  userInput.style.height = "auto"; // Adjusted height
+  userInput.style.height = "auto"; // Reset input height
   sendButton.disabled = true;
 
-  // Add the user message to the conversation history
   conversationHistory.push({ role: "user", content: message });
-  saveChatHistory(); // Save chat history to local storage
+  saveChatHistory();
 
-  // Create a new AbortController for each request
   abortController = new AbortController();
   const { signal } = abortController;
 
-  // Add a loading indicator before the stream starts
-  const loadingMessage = document.createElement('div');
-  loadingMessage.classList.add('message', 'bot-message', 'loading-message');
-  loadingMessage.innerHTML = `<i class="fa-solid fa-circle"></i>`;
-  chatBox.appendChild(loadingMessage);
-  chatBox.scrollTop = chatBox.scrollHeight; // Ensure auto-scrolling when loading
+  // Create a bot message container
+  const botMessage = document.createElement('div');
+  botMessage.classList.add('message', 'bot-message');
+  chatBox.appendChild(botMessage);
 
-  // Send the conversation history to the API using fetch()
+  // Auto-scroll to bottom
+  if (isAutoScrolling) {
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
   fetch(apiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: conversationHistory }),
-      signal: signal, // Attach the signal to fetch request
-    })
-    .then(response => response.json())
-    .then(res => {
-      console.log(res); // Log the response to inspect its structure
+      signal: signal,
+  })
+  .then(response => {
+      if (!response.body) throw new Error("No response body");
 
-      // Remove the loading indicator
-      loadingMessage.remove();
+      const reader = response.body.getReader();
+      let streamedText = "";
+      
+      const processStream = async () => {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+    
+            const chunk = new TextDecoder().decode(value);
+            streamedText += chunk;
+    
+            // Normalize line breaks before rendering
+            const normalizedText = streamedText.replace(/\n{2,}/g, '\n');
+    
+            // Render Markdown dynamically
+            botMessage.innerHTML = md.render(normalizedText);
+    
+            // Enhance code blocks dynamically
+            botMessage.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightBlock(block);
+                if (!block.parentElement.classList.contains('code-wrapper')) {
+                    enhanceCodeBlock(block);
+                }
+            });
+    
+            // Always scroll to bottom while streaming if auto-scroll is enabled
+            if (isAutoScrolling) {
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
+    
+        // Save final response to conversation history
+        conversationHistory.push({ role: "assistant", content: streamedText });
+        saveChatHistory();
+    
+        // Add copy text button after streaming completes
+        botMessage.dataset.markdownContent = streamedText;
+        let copyTextButton = document.createElement('button');
+        copyTextButton.classList.add('copy-text-btn');
+        copyTextButton.innerHTML = `<i class="fa-regular fa-clone"></i>`;
+    
+        copyTextButton.onclick = () => {
+            navigator.clipboard.writeText(streamedText).then(() => {
+                copyTextButton.innerHTML = `<i class="fa-solid fa-check"></i>`;
+                setTimeout(() => copyTextButton.innerHTML = `<i class="fa-regular fa-clone"></i>`, 1500);
+            }).catch((error) => {
+                console.error('Failed to copy:', error);
+            });
+        };
+    
+        botMessage.appendChild(copyTextButton);
+    
+        // **Ensure final scroll to bottom after streaming completes if auto-scroll is enabled**
+        if (isAutoScrolling) {
+            setTimeout(() => {
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }, 100);
+        }
+    };
+    
 
-      // Check if the response has the expected message
-      if (res && res.response) {
-        const botResponse = res.response || "Unexpected response format.";
-
-        // Create a bot message element
-        const botMessage = document.createElement('div');
-        botMessage.classList.add('message', 'bot-message');
-        chatBox.appendChild(botMessage);
-
-        // Stream the bot response word by word with markdown
-        streamBotResponse(botResponse, botMessage);
-
-        // Add the bot message to conversation history
-        conversationHistory.push({ role: "assistant", content: botResponse });
-        saveChatHistory(); // Save updated chat history to local storage
-      } else {
-        addMessageWithMarkdown("Error: Unexpected response format.", 'bot');
+      processStream();
+  })
+  .catch(error => {
+      if (error.name !== 'AbortError') {
+          console.error("Error streaming response:", error);
+          botMessage.textContent = "Error: Could not reach AI service.";
       }
-
-      // Ensure the chat box scrolls to the bottom after the message is sent
-      chatBox.scrollTop = chatBox.scrollHeight;
-    })
-    .catch((error) => {
-      // Remove the loading indicator in case of an error
-      loadingMessage.remove();
-
-      if (error.name === 'AbortError') {
-        console.log('Fetch request was aborted');
-      } else {
-        const errorMsg = document.createElement('div');
-        errorMsg.classList.add('message', 'bot-message', 'error-message');
-        errorMsg.textContent = "Error: Could not reach AI service.";
-        chatBox.appendChild(errorMsg);
-        chatBox.scrollTop = chatBox.scrollHeight;
-      }
-    });
+  });
 };
 
 // Function to remove the welcome message once the user sends a message
