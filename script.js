@@ -132,40 +132,43 @@ const streamBotResponse = (response, messageElement) => {
   let wordIndex = 0;
   const typingSpeed = 30; // Faster typing effect
   let streamedText = ""; // Accumulate streamed text
-
+  
   const typeNextWord = () => {
     if (wordIndex < words.length) {
       streamedText += (wordIndex === 0 ? "" : " ") + words[wordIndex]; // Maintain spaces
       wordIndex++;
-
+      
+      // Normalize line breaks before rendering
+      const normalizedText = streamedText.replace(/\n{2,}/g, '\n');
+      
       // Render Markdown on the fly
-      messageElement.innerHTML = md.render(streamedText);
-
+      messageElement.innerHTML = md.render(normalizedText);
+      
       // Enhance code blocks dynamically
       messageElement.querySelectorAll('pre code').forEach((block) => {
         hljs.highlightBlock(block);
-
+        
         // Ensure we only add buttons once
         if (!block.parentElement.classList.contains('code-wrapper')) {
           enhanceCodeBlock(block);
         }
       });
-
+      
       // Auto-scroll if enabled
       if (isAutoScrolling) {
         chatBox.scrollTop = chatBox.scrollHeight;
       }
-
+      
       setTimeout(typeNextWord, typingSpeed);
     } else {
       // Store raw content in the dataset for copy functionality
       messageElement.dataset.markdownContent = response;
-
+      
       // Add the copy button
       let copyTextButton = document.createElement('button');
       copyTextButton.classList.add('copy-text-btn');
       copyTextButton.innerHTML = `<i class="fa-regular fa-clone"></i>`;
-
+      
       copyTextButton.onclick = () => {
         navigator.clipboard.writeText(response).then(() => {
           copyTextButton.innerHTML = `<i class="fa-solid fa-check"></i>`;
@@ -174,11 +177,11 @@ const streamBotResponse = (response, messageElement) => {
           console.error('Failed to copy:', error);
         });
       };
-
+      
       messageElement.appendChild(copyTextButton);
     }
   };
-
+  
   typeNextWord();
 };
 
@@ -247,7 +250,7 @@ const sendMessage = () => {
   if (!message) return;
   addMessageWithMarkdown(message, 'user');
   userInput.value = '';
-  userInput.style.height = "100px"; // Adjusted height
+  userInput.style.height = "auto"; // Adjusted height
   sendButton.disabled = true;
 
   // Add the user message to the conversation history
@@ -263,9 +266,7 @@ const sendMessage = () => {
   loadingMessage.classList.add('message', 'bot-message', 'loading-message');
   loadingMessage.innerHTML = `<i class="fa-solid fa-circle"></i>`;
   chatBox.appendChild(loadingMessage);
-  if (isAutoScrolling) {
-    chatBox.scrollTop = chatBox.scrollHeight;
-  }
+  chatBox.scrollTop = chatBox.scrollHeight; // Ensure auto-scrolling when loading
 
   // Send the conversation history to the API using fetch()
   fetch(apiUrl, {
@@ -301,6 +302,9 @@ const sendMessage = () => {
       } else {
         addMessageWithMarkdown("Error: Unexpected response format.", 'bot');
       }
+
+      // Ensure the chat box scrolls to the bottom after the message is sent
+      chatBox.scrollTop = chatBox.scrollHeight;
     })
     .catch((error) => {
       // Remove the loading indicator in case of an error
@@ -343,7 +347,7 @@ displayWelcomeMessageIfNeeded();
 
 // Handle user input
 userInput.addEventListener('input', () => {
-  userInput.style.height = "100px"; // Adjusted height for better input area
+  userInput.style.height = "auto"; // Adjusted height for better input area
   userInput.style.height = Math.min(userInput.scrollHeight, 300) + "px";
   sendButton.disabled = !userInput.value.trim();
 });
