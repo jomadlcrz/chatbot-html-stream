@@ -198,6 +198,9 @@ textarea {
     .message {
         max-width: 90vw;
     }
+    .user-message {
+        max-width: 75%;
+    }
 }
 
 .user-message {
